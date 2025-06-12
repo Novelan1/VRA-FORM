@@ -1,31 +1,32 @@
-from dotenv import load_dotenv
+# === FIX INOTIFY ERROR IN DEPLOYMENT ===
 import os
+os.environ["STREAMLIT_DISABLE_WATCHDOG_WARNINGS"] = "true"
+os.environ["STREAMLIT_WATCH_DIRECTORIES"] = "false"
 
-# Load environment variables
-load_dotenv()
-
+# === LOAD LIBRARIES ===
+from dotenv import load_dotenv
 import streamlit as st
 import pandas as pd
 from docx import Document
 from io import BytesIO
-import yaml
 import re
+import yaml
 import streamlit_authenticator as stauth
 from yaml.loader import SafeLoader
 
-# === PAGE CONFIG ===
-st.set_page_config(page_title="VRA Form Generator", layout="wide")
-
-# === LOAD AUTHENTICATION CONFIG ===
-config = st.secrets
-
-# === FETCH SECRET FROM ENV ===
+# === LOAD ENV ===
+load_dotenv()
 cookie_secret = os.getenv("COOKIE_SECRET")
 if not cookie_secret:
-    st.stop()  # Stop if secret is missing
-    raise ValueError("COOKIE_SECRET not found. Please set it in .env or Streamlit secrets.")
+    st.stop()
+    raise ValueError("COOKIE_SECRET not set")
 
-# === SETUP AUTHENTICATOR ===
+# === STREAMLIT CONFIG ===
+st.set_page_config(page_title="VRA Form Generator", layout="wide")
+
+# === AUTH CONFIG ===
+config = st.secrets
+
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
@@ -33,20 +34,18 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
-# === LOGIN ===
 name, authentication_status, username = authenticator.login('Login', location='main')
 
 if authentication_status is False:
-    st.error('Username or password is incorrect.')
+    st.error('Incorrect username or password.')
 elif authentication_status is None:
     st.warning('Please enter your username and password.')
 elif authentication_status:
     authenticator.logout('Logout', 'sidebar')
-    st.sidebar.success(f'Logged in as {name}')
-
+    st.sidebar.success(f"Logged in as {name}")
     st.title("📄 Vulnerability Risk Assessment (VRA) Form")
-    st.sidebar.header("Upload Files")
 
+    st.sidebar.header("Upload Files")
     excel_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
     template_file = st.sidebar.file_uploader("Upload Word Template", type=["docx"])
 
@@ -55,7 +54,7 @@ elif authentication_status:
         df.columns = [col.strip().replace("\n", "_").replace(" ", "_") for col in df.columns]
 
         if 'AppCode' not in df.columns:
-            st.error("The column 'AppCode' was not found in the Excel file.")
+            st.error("Missing 'AppCode' column in Excel.")
         else:
             appcode_list = df['AppCode'].dropna().unique().tolist()
             selected_appcode = st.selectbox("Select AppCode", appcode_list)
@@ -63,7 +62,7 @@ elif authentication_status:
             if st.button("Generate Report"):
                 group = df[df['AppCode'] == selected_appcode]
                 if group.empty:
-                    st.warning("No data found for the selected AppCode.")
+                    st.warning("No data found for selected AppCode.")
                 else:
                     ip_list = group['IPAddress'].dropna().unique()
                     ip_string = ", ".join(ip_list)
@@ -125,7 +124,6 @@ elif authentication_status:
                     system_affected_col = system_affected_col.replace("CTX", selected_appcode)
                     system_affected_col = system_affected_col.replace("Refer to Appendix", ip_info)
                     system_affected_col = system_affected_col.replace("Prod and DR", etype_string)
-
                     summary_table.cell(1, 0).text = system_affected_col
 
                     background_cell = summary_table.cell(1, 1)
@@ -146,7 +144,6 @@ elif authentication_status:
                         heading_run.bold = True
 
                         level_records = group[group['CVSSv3_RiskRating'].str.upper() == level]
-
                         if not level_records.empty:
                             for _, row in level_records.iterrows():
                                 background_cell.add_paragraph(f"\u2022 {str(row.get('Vulnerability_ID', '')).strip()}")
