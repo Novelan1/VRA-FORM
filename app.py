@@ -1,7 +1,7 @@
 # === FIX INOTIFY ERROR IN DEPLOYMENT ===
 import os
+os.environ["STREAMLIT_WATCH_FILE_SYSTEM"] = "false"  # ✅ The correct fix
 os.environ["STREAMLIT_DISABLE_WATCHDOG_WARNINGS"] = "true"
-os.environ["STREAMLIT_WATCH_DIRECTORIES"] = "false"
 
 # === LOAD LIBRARIES ===
 from dotenv import load_dotenv
@@ -38,8 +38,10 @@ name, authentication_status, username = authenticator.login('Login', location='m
 
 if authentication_status is False:
     st.error('Incorrect username or password.')
+
 elif authentication_status is None:
     st.warning('Please enter your username and password.')
+
 elif authentication_status:
     authenticator.logout('Logout', 'sidebar')
     st.sidebar.success(f"Logged in as {name}")
